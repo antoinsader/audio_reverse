@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      font-family: system-ui, sans-serif;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      font-size: 1.1rem;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .panel button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: opacity .2s ease;
+    }
+    .panel button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .p1 { background: #1e88e5; }
+    .p2 { background: #43a047; }
+    .p3 { background: #fb8c00; }
+    .p4 { background: #8e24aa; }
+
+    @media (max-width: 700px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="panel p1">
+    <h2>Record #1</h2>
+    <button id="rec1">Start Recording</button>
+    <button id="stop1" disabled>Stop</button>
+  </div>
+
+  <div class="panel p2">
+    <h2>Play Reverse #1</h2>
+    <button id="playRev1" disabled>Play Reversed</button>
+  </div>
+
+  <div class="panel p3">
+    <h2>Record #2</h2>
+    <button id="rec2">Start Recording</button>
+    <button id="stop2" disabled>Stop</button>
+  </div>
+
+  <div class="panel p4">
+    <h2>Play Reverse #2</h2>
+    <button id="playRev2" disabled>Play Reversed</button>
+  </div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    async function createRecorder(recordBtn, stopBtn, playBtn) {
+      let recorder;
+      let chunks = [];
+      let reversedBuffer = null;
+
+      recordBtn.onclick = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+
+        chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+
+        recorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: "audio/webm" });
+          const arrBuf = await blob.arrayBuffer();
+          const audioBuf = await audioCtx.decodeAudioData(arrBuf);
+
+          reversedBuffer = audioCtx.createBuffer(
+            audioBuf.numberOfChannels,
+            audioBuf.length,
+            audioBuf.sampleRate
+          );
+
+          for (let c = 0; c < audioBuf.numberOfChannels; c++) {
+            const input = audioBuf.getChannelData(c);
+            const output = reversedBuffer.getChannelData(c);
+            for (let i = 0; i < input.length; i++) {
+              output[i] = input[input.length - 1 - i];
+            }
+          }
+
+          playBtn.disabled = false;
+        };
+
+        recorder.start();
+        recordBtn.disabled = true;
+        stopBtn.disabled = false;
+      };
+
+      stopBtn.onclick = () => {
+        recorder.stop();
+        stopBtn.disabled = true;
+        recordBtn.disabled = false;
+      };
+
+      playBtn.onclick = () => {
+        if (!reversedBuffer) return;
+        const src = audioCtx.createBufferSource();
+        src.buffer = reversedBuffer;
+        src.connect(audioCtx.destination);
+        src.start();
+      };
+    }
+
+    createRecorder(
+      document.getElementById("rec1"),
+      document.getElementById("stop1"),
+      document.getElementById("playRev1")
+    );
+
+    createRecorder(
+      document.getElementById("rec2"),
+      document.getElementById("stop2"),
+      document.getElementById("playRev2")
+    );
+  </script>
+</body>
+</html>
